@@ -29,6 +29,18 @@ st.markdown(
             background-color: #ffffff;
         }}
 
+# Set up Streamlit layout
+st.set_page_config(page_title="Pet Authentication & Welfare System", layout="wide")
+
+# Custom CSS to change background color and add navbar
+st.markdown(
+    f"""
+    <style>
+        /* Change background color to white */
+        .css-18e3th9 {{
+            background-color: #ffffff;
+        }}
+
         /* Navbar styling */
         .navbar {{
             display: flex;
