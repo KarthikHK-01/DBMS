@@ -17,18 +17,6 @@ pets_data = {
     }
 }
 
-
-st.set_page_config(page_title="Pet Authentication & Welfare System", layout="wide")
-
-
-st.markdown(
-    f"""
-    <style>
-        /* Change background color to white */
-        .css-18e3th9 {{
-            background-color: #ffffff;
-        }}
-
 # Set up Streamlit layout
 st.set_page_config(page_title="Pet Authentication & Welfare System", layout="wide")
 
