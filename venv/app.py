@@ -17,10 +17,10 @@ pets_data = {
     }
 }
 
-# Set up Streamlit layout
+
 st.set_page_config(page_title="Pet Authentication & Welfare System", layout="wide")
 
-# Custom CSS to change background color and add navbar
+
 st.markdown(
     f"""
     <style>
