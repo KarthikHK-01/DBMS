@@ -8,7 +8,7 @@ def create_connection():
     try:
         connection = mysql.connector.connect(
             host='localhost',       # Replace with your MySQL host
-            database='paws_database',  # Replace with your database name
+            database='paws_schema',  # Replace with your database name
             user='root',            # Replace with your MySQL username
             password='05112004!@#$' # Replace with your MySQL password
         )
@@ -18,17 +18,17 @@ def create_connection():
         return None
 
 # Function to hash passwords for secure storage
-def hash_password(password):
-    return hashlib.sha256(password.encode()).hexdigest()
+# def hash_password(password):
+#     return hashlib.sha256(password.encode()).hexdigest()
 
 # Function to create a new user (Sign-Up)
 def create_user(connection, name, address, contact, email, aadhar, password, role="standard"):
     try:
         cursor = connection.cursor()
-        hashed_password = hash_password(password)
+        #hashed_password = hash_password(password)
         cursor.execute(
             "INSERT INTO users (name, address, contact_number, email, aadhar_no, passwords, user_role) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-            (name, address, contact, email, aadhar, hashed_password, role)
+            (name, address, contact, email, aadhar, password, role)
         )
         connection.commit()
         st.success("Account created successfully!")
@@ -39,8 +39,8 @@ def create_user(connection, name, address, contact, email, aadhar, password, rol
 def login_user(connection, email, password):
     try:
         cursor = connection.cursor()
-        hashed_password = hash_password(password)
-        cursor.execute("SELECT * FROM users WHERE email = %s AND passwords = %s", (email, hashed_password))
+        # hashed_password = hash_password(password)
+        cursor.execute("SELECT * FROM users WHERE email = %s AND passwords = %s", (email, password))
         user = cursor.fetchone()
         if user:
             st.success("Logged in successfully!")
