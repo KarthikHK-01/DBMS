@@ -1,6 +1,7 @@
 import streamlit as st
 import mysql.connector
 from mysql.connector import Error
+from datetime import date
 
 # Database connection function
 def create_connection():
@@ -38,7 +39,7 @@ def login_user(connection, email, password):
         if user:
             st.session_state.user_id = user[0]
             st.session_state.user_name = user[1]
-            st.session_state.logged_in = True  # Set login state to True
+            st.session_state.logged_in = True
             st.success("Logged in successfully!")
         else:
             st.error("Invalid email or password.")
@@ -49,9 +50,49 @@ def login_user(connection, email, password):
 def get_user_pets(connection, owner_id):
     try:
         cursor = connection.cursor()
-        cursor.execute("SELECT name, species, breed, date_of_birth, color FROM pets WHERE owner_id = %s", (owner_id,))
+        cursor.execute("SELECT id, name FROM pets WHERE owner_id = %s", (owner_id,))
         pets = cursor.fetchall()
         return pets
+    except Error as e:
+        st.error(f"Error: {e}")
+        return []
+
+# Function to fetch detailed information for a specific pet
+def get_pet_details(connection, pet_id):
+    try:
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT pets.name, pets.species, pets.breed, pets.date_of_birth, pets.color, 
+                   veterinarians.name AS vet_name, veterinarians.contact_number AS vet_contact
+            FROM pets
+            LEFT JOIN veterinarians ON pets.vet_id = veterinarians.id
+            WHERE pets.id = %s
+        """, (pet_id,))
+        pet_details = cursor.fetchone()
+
+        # Calculate pet age
+        if pet_details and pet_details["date_of_birth"]:
+            dob = pet_details["date_of_birth"]
+            age = (date.today() - dob).days // 365
+            pet_details["age"] = age
+
+        return pet_details
+    except Error as e:
+        st.error(f"Error: {e}")
+        return None
+
+# Function to fetch activity log for a specific pet
+def get_pet_activity_log(connection, pet_id):
+    try:
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT activity_type, duration, activity_date 
+            FROM pet_activity_log 
+            WHERE pet_id = %s
+            ORDER BY activity_date DESC
+        """, (pet_id,))
+        activity_log = cursor.fetchall()
+        return activity_log
     except Error as e:
         st.error(f"Error: {e}")
         return []
@@ -59,52 +100,69 @@ def get_user_pets(connection, owner_id):
 # Initialize session state for login if it doesn't exist
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
+if 'selected_pet_id' not in st.session_state:
+    st.session_state.selected_pet_id = None
 
 # Main app logic
 if st.session_state.logged_in:
-    # Home Page
     st.set_page_config(page_title="PAWS - Home", layout="wide")
-    st.sidebar.title("Navigation")
-    selected_option = st.sidebar.radio("Go to", ["Home", "Pets", "About Us"])
+    selected_option = st.sidebar.radio("Navigate", ["Home", "Pets", "About Us"])
 
     connection = create_connection()
     if connection:
         if selected_option == "Home":
             st.title(f"Welcome to PAWS, {st.session_state.user_name}!")
-            st.write("PAWS (Pet Authentication and Welfare System) is your companion in managing your pets' medical history, vaccinations, and other essential information.")
-            st.write("Our mission is to ensure pets get the care they need, while making it easy for pet owners to manage their beloved pets' records.")
+            st.write("PAWS helps you manage your pets' medical history and more.")
 
         elif selected_option == "Pets":
-            st.title("Your Pets")
-            pets = get_user_pets(connection, st.session_state.user_id)
-            
-            if pets:
-                for pet in pets:
-                    st.subheader(pet[0])  # Pet Name
-                    st.write(f"**Species**: {pet[1]}")
-                    st.write(f"**Breed**: {pet[2]}")
-                    st.write(f"**Date of Birth**: {pet[3]}")
-                    st.write(f"**Color**: {pet[4]}")
-                    st.write("---")
+            if st.session_state.selected_pet_id is None:
+                # Pets overview page: list of pets with clickable names
+                st.title("Your Pets")
+                pets = get_user_pets(connection, st.session_state.user_id)
+                if pets:
+                    for pet in pets:
+                        pet_id, pet_name = pet
+                        if st.button(pet_name):
+                            st.session_state.selected_pet_id = pet_id
+                            st.query_params.update(selected_pet=pet_id)  # Update query parameters
             else:
-                st.write("No pets found for this user.")
+                # Detailed view for a specific pet
+                pet_id = st.session_state.selected_pet_id
+                pet_details = get_pet_details(connection, pet_id)
+                activity_log = get_pet_activity_log(connection, pet_id)
+
+                if pet_details:
+                    st.header(f"Details for {pet_details['name']}")
+                    st.write(f"**Species**: {pet_details['species']}")
+                    st.write(f"**Breed**: {pet_details['breed']}")
+                    st.write(f"**Age**: {pet_details.get('age', 'N/A')} years")
+                    st.write(f"**Color**: {pet_details['color']}")
+                    st.write(f"**Date of Birth**: {pet_details['date_of_birth']}")
+                    st.write(f"**Veterinarian**: {pet_details['vet_name']}")
+                    st.write(f"**Vet Contact**: {pet_details['vet_contact']}")
+
+                    # Display activity log
+                    st.subheader("Activity Log")
+                    if activity_log:
+                        for activity in activity_log:
+                            st.write(f"- **{activity['activity_type']}** on {activity['activity_date']} for {activity['duration']}")
+                    else:
+                        st.write("No activities recorded.")
+                
+                # Back button to return to pets list
+                if st.button("Back to Pets List"):
+                    st.session_state.selected_pet_id = None
 
         elif selected_option == "About Us":
             st.title("About PAWS")
-            st.write("""
-                **Pet Authentication and Welfare System (PAWS)** is a comprehensive solution designed to manage 
-                pet data efficiently. With PAWS, pet owners can track their pets' medical history, vaccinations, 
-                and insurance policies, all in one place. Our mission is to ensure pets receive the care they deserve 
-                while making it easier for pet owners to manage important details about their furry friends.
-            """)
+            st.write("PAWS is a comprehensive pet management solution.")
 
         connection.close()
     else:
         st.error("Unable to connect to the database.")
-
 else:
-    # Login/Sign-Up Page
-    st.title("Welcome to PAWS")
+    # Display Login and Sign-Up Page if not logged in
+    st.title("Pet Authentication and Welfare System")
     choice = st.radio("Select Option", ["Login", "Sign Up"])
 
     connection = create_connection()
