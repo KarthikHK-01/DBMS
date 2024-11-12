@@ -7,10 +7,10 @@ import hashlib
 def create_connection():
     try:
         connection = mysql.connector.connect(
-            host='localhost',       # Replace with your MySQL host
-            database='paws_database',  # Replace with your database name
+            host='127.0.0.1',       # Replace with your MySQL host
+            database='paws_schema',  # Replace with your database name
             user='root',            # Replace with your MySQL username
-            password='05112004!@#$' # Replace with your MySQL password
+            password='Auromeow9' # Replace with your MySQL password
         )
         return connection
     except Error as e:
@@ -22,16 +22,19 @@ def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
 # Function to create a new user (Sign-Up)
-def create_user(connection, name, address, contact, email, aadhar, password):
+def create_user(connection, name, address, contact, email, aadhar, password, role="standard"):
     try:
         cursor = connection.cursor()
         hashed_password = hash_password(password)
-        cursor.execute("INSERT INTO users (name, address, contact_number, email, aadhar_no, passwords) VALUES (%s, %s, %s, %s, %s, %s)",
-                       (name, address, contact, email, aadhar, hashed_password))
+        cursor.execute(
+            "INSERT INTO users (name, address, contact_number, email, aadhar_no, passwords, user_role) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+            (name, address, contact, email, aadhar, hashed_password, role)
+        )
         connection.commit()
         st.success("Account created successfully!")
     except Error as e:
         st.error(f"Error: {e}")
+
 
 # Function to check login credentials
 def login_user(connection, email, password):
@@ -42,13 +45,14 @@ def login_user(connection, email, password):
         user = cursor.fetchone()
         if user:
             st.success("Logged in successfully!")
-            return user
+            return user  # Return full user details, including role
         else:
             st.error("Invalid email or password.")
             return None
     except Error as e:
         st.error(f"Error: {e}")
         return None
+
 
 # Main app
 st.title("Pet Authentication and Welfare System")
