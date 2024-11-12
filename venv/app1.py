@@ -6,24 +6,22 @@ from mysql.connector import Error
 def create_connection():
     try:
         connection = mysql.connector.connect(
-            host='localhost',       
-            database='paws_schema', 
-            user='root',            
-            password='05112004!@#$' 
+            host='localhost',       # Replace with your MySQL host
+            database='paws_database',  # Replace with your database name
+            user='root',            # Replace with your MySQL username
+            password='05112004!@#$' # Replace with your MySQL password
         )
         return connection
     except Error as e:
         st.error(f"Error: {e}")
         return None
 
-# Function to create a new user (Sign-Up)
 def create_user(connection, name, address, contact, email, aadhar, password, role="standard"):
     try:
         cursor = connection.cursor()
-        cursor.execute(
-            "INSERT INTO users (name, address, contact_number, email, aadhar_no, passwords, user_role) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-            (name, address, contact, email, aadhar, password, role)
-        )
+        hashed_password = hash_password(password)
+        cursor.execute("INSERT INTO users (name, address, contact_number, email, aadhar_no, passwords) VALUES (%s, %s, %s, %s, %s, %s)",
+                       (name, address, contact, email, aadhar, hashed_password))
         connection.commit()
         st.success("Account created successfully!")
     except Error as e:
@@ -40,6 +38,7 @@ def login_user(connection, email, password):
             st.session_state.user_name = user[1]
             st.session_state.logged_in = True  # Set login state to True
             st.success("Logged in successfully!")
+            return user
         else:
             st.error("Invalid email or password.")
     except Error as e:
@@ -54,58 +53,10 @@ def get_user_pets(connection, owner_id):
         return pets
     except Error as e:
         st.error(f"Error: {e}")
-        return []
+        return None
 
-# Initialize session state for login if it doesn't exist
-if 'logged_in' not in st.session_state:
-    st.session_state.logged_in = False
-
-# Main app logic
-if st.session_state.logged_in:
-    # Home Page
-    st.set_page_config(page_title="PAWS - Home", layout="wide")
-    st.sidebar.title("Navigation")
-    selected_option = st.sidebar.radio("Go to", ["Home", "Pets", "About Us"])
-
-    connection = create_connection()
-    if connection:
-        if selected_option == "Home":
-            st.title(f"Welcome to PAWS, {st.session_state.user_name}!")
-            st.write("PAWS (Pet Authentication and Welfare System) is your companion in managing your pets' medical history, vaccinations, and other essential information.")
-            st.write("Our mission is to ensure pets get the care they need, while making it easy for pet owners to manage their beloved pets' records.")
-
-        elif selected_option == "Pets":
-            st.title("Your Pets")
-            pets = get_user_pets(connection, st.session_state.user_id)
-            
-            if pets:
-                for pet in pets:
-                    st.subheader(pet[0])  # Pet Name
-                    st.write(f"**Species**: {pet[1]}")
-                    st.write(f"**Breed**: {pet[2]}")
-                    st.write(f"**Date of Birth**: {pet[3]}")
-                    st.write(f"**Color**: {pet[4]}")
-                    st.write("---")
-            else:
-                st.write("No pets found for this user.")
-
-        elif selected_option == "About Us":
-            st.title("About PAWS")
-            st.write("""
-                **Pet Authentication and Welfare System (PAWS)** is a comprehensive solution designed to manage 
-                pet data efficiently. With PAWS, pet owners can track their pets' medical history, vaccinations, 
-                and insurance policies, all in one place. Our mission is to ensure pets receive the care they deserve 
-                while making it easier for pet owners to manage important details about their furry friends.
-            """)
-
-        connection.close()
-    else:
-        st.error("Unable to connect to the database.")
-
-else:
-    # Login/Sign-Up Page
-    st.title("Welcome to PAWS")
-    choice = st.radio("Select Option", ["Login", "Sign Up"])
+st.title("Pet Authentication and Welfare System")
+choice = st.radio("Select Option", ["Login", "Sign Up"])
 
     connection = create_connection()
     if connection:

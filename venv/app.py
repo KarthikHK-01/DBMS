@@ -6,7 +6,7 @@ from mysql.connector import Error
 def create_connection():
     try:
         connection = mysql.connector.connect(
-            host='localhost',       # Replace with your MySQL host
+            host='l27.0.0.1:3306',       # Replace with your MySQL host
             database='paws_database',  # Replace with your database name
             user='root',            # Replace with your MySQL username
             password='05112004!@#$' # Replace with your MySQL password
