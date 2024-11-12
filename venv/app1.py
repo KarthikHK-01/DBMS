@@ -3,29 +3,22 @@ import mysql.connector
 from mysql.connector import Error
 import hashlib
 
-# Database connection function
 def create_connection():
     try:
         connection = mysql.connector.connect(
-            host='localhost',       # Replace with your MySQL host
-            database='paws_schema',  # Replace with your database name
-            user='root',            # Replace with your MySQL username
-            password='05112004!@#$' # Replace with your MySQL password
+            host='localhost',       
+            database='paws_schema', 
+            user='root',            
+            password='05112004!@#$' 
         )
         return connection
     except Error as e:
         st.error(f"Error: {e}")
         return None
 
-# Function to hash passwords for secure storage
-# def hash_password(password):
-#     return hashlib.sha256(password.encode()).hexdigest()
-
-# Function to create a new user (Sign-Up)
 def create_user(connection, name, address, contact, email, aadhar, password, role="standard"):
     try:
         cursor = connection.cursor()
-        #hashed_password = hash_password(password)
         cursor.execute(
             "INSERT INTO users (name, address, contact_number, email, aadhar_no, passwords, user_role) VALUES (%s, %s, %s, %s, %s, %s, %s)",
             (name, address, contact, email, aadhar, password, role)
@@ -35,16 +28,14 @@ def create_user(connection, name, address, contact, email, aadhar, password, rol
     except Error as e:
         st.error(f"Error: {e}")
 
-# Function to check login credentials
 def login_user(connection, email, password):
     try:
         cursor = connection.cursor()
-        # hashed_password = hash_password(password)
         cursor.execute("SELECT * FROM users WHERE email = %s AND passwords = %s", (email, password))
         user = cursor.fetchone()
         if user:
             st.success("Logged in successfully!")
-            return user  # Return full user details, including role
+            return user
         else:
             st.error("Invalid email or password.")
             return None
@@ -52,10 +43,7 @@ def login_user(connection, email, password):
         st.error(f"Error: {e}")
         return None
 
-# Main app
 st.title("Pet Authentication and Welfare System")
-
-# Display login and sign-up options
 choice = st.radio("Select Option", ["Login", "Sign Up"])
 
 connection = create_connection()
@@ -81,9 +69,8 @@ if connection:
         if st.button("Login"):
             user = login_user(connection, email, password)
             if user:
-                st.write(f"Welcome, {user[1]}!")  # Display the user's name after login
+                st.write(f"Welcome, {user[1]}!")
 
-    # Close connection after operations
     connection.close()
 else:
     st.error("Unable to connect to the database.")
