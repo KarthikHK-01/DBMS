@@ -30,15 +30,16 @@ def create_user(connection, name, address, contact, email, aadhar, password, rol
     except Error as e:
         st.error(f"Error: {e}")
 
-# Function to check login credentials
+# Function to check login credentials and user role
 def login_user(connection, email, password):
     try:
         cursor = connection.cursor()
-        cursor.execute("SELECT id, name FROM users WHERE email = %s AND passwords = %s", (email, password))
+        cursor.execute("SELECT id, name, user_role FROM users WHERE email = %s AND passwords = %s", (email, password))
         user = cursor.fetchone()
         if user:
             st.session_state.user_id = user[0]
             st.session_state.user_name = user[1]
+            st.session_state.user_role = user[2]
             st.session_state.logged_in = True
             st.success("Logged in successfully!")
         else:
@@ -97,16 +98,43 @@ def get_pet_activity_log(connection, pet_id):
         st.error(f"Error: {e}")
         return []
 
+# Function to delete a pet (admin privilege)
+def delete_pet(connection, pet_id):
+    try:
+        cursor = connection.cursor()
+        cursor.execute("DELETE FROM pets WHERE id = %s", (pet_id,))
+        connection.commit()
+        st.success("Pet deleted successfully!")
+    except Error as e:
+        st.error(f"Error: {e}")
+
 # Initialize session state for login if it doesn't exist
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
 if 'selected_pet_id' not in st.session_state:
     st.session_state.selected_pet_id = None
 
+# Logout functionality
+def logout():
+    # Clear all relevant session state variables for logout
+    st.session_state.logged_in = False
+    st.session_state.user_id = None
+    st.session_state.user_name = None
+    st.session_state.user_role = None
+    st.session_state.selected_pet_id = None
+
 # Main app logic
 if st.session_state.logged_in:
     st.set_page_config(page_title="PAWS - Home", layout="wide")
-    selected_option = st.sidebar.radio("Navigate", ["Home", "Pets", "About Us"])
+
+    # Sidebar with navigation options
+    sidebar_options = ["Home", "Pets", "About Us"]
+    if st.session_state.user_role == "admin":
+        sidebar_options.insert(2, "Admin Panel")  # Insert Admin Panel only for admins
+
+    # Display sidebar options and logout button
+    selected_option = st.sidebar.radio("Navigate", sidebar_options)
+    st.sidebar.button("Logout", on_click=logout)  # Logout button always visible
 
     connection = create_connection()
     if connection:
@@ -124,7 +152,13 @@ if st.session_state.logged_in:
                         pet_id, pet_name = pet
                         if st.button(pet_name):
                             st.session_state.selected_pet_id = pet_id
-                            st.query_params.update(selected_pet=pet_id)  # Update query parameters
+
+                if st.session_state.user_role == "admin":
+                    st.subheader("Admin: Delete a Pet")
+                    pet_id_to_delete = st.number_input("Enter Pet ID to delete", min_value=1, step=1)
+                    if st.button("Delete Pet"):
+                        delete_pet(connection, pet_id_to_delete)
+
             else:
                 # Detailed view for a specific pet
                 pet_id = st.session_state.selected_pet_id
@@ -152,6 +186,12 @@ if st.session_state.logged_in:
                 # Back button to return to pets list
                 if st.button("Back to Pets List"):
                     st.session_state.selected_pet_id = None
+
+        elif selected_option == "Admin Panel" and st.session_state.user_role == "admin":
+            # Admin Panel code here (e.g., view users, add users, delete users, etc.)
+            st.title("Admin Panel")
+            st.write("Manage users and pets as an administrator.")
+            # Additional CRUD options for the Admin Panel can go here
 
         elif selected_option == "About Us":
             st.title("About PAWS")

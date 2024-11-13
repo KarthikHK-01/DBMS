@@ -157,3 +157,9 @@ INSERT INTO pets (name, species, breed, gender, date_of_birth, color, reg_date, 
 ("Hailey", "Cat", "Ragdoll", "Female", "2023-6-12", "White", "2023-6-15", 1, 2),
 ("Pinky", "Dog", "Labrador", "Female", "2024-7-23", "White", "2024-7-25", 3, 1),
 ("Cooper", "Dog", "Samoyed", "Male", "2023-9-04", "Black and Tan", "2023-10-11", 4, 3);
+
+INSERT INTO pet_activity_log (pet_id, activity_type, duration, activity_date) VALUES
+(6, "Play", "00:20:00", "2023-06-01"),
+(7, "Grooming", "00:15:00", "2023-06-01"),
+(8, "Walk", "00:50:00", "2023-06-01"),
+(9,"Traning", "00:45:00", "2023-06-01");
