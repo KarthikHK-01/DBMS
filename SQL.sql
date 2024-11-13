@@ -144,3 +144,9 @@ ALTER TABLE pets
 ADD COLUMN vet_id INT,
 ADD CONSTRAINT fk_veterinarian
 FOREIGN KEY (vet_id) REFERENCES veterinarians(id);
+
+UPDATE 'paws_schema'.'pets' SET 'vet_id' = '1' WHERE ('id' = '1');
+UPDATE 'paws_schema'.'pets' SET 'vet_id' = '2' WHERE ('id' = '2');
+UPDATE 'paws_schema'.'pets' SET 'vet_id' = '3' WHERE ('id' = '3');
+UPDATE 'paws_schema'.'pets' SET 'vet_id' = '4' WHERE ('id' = '4');
+UPDATE 'paws_schema'.'pets' SET 'vet_id' = '3' WHERE ('id' = '5');
