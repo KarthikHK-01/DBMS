@@ -150,3 +150,10 @@ UPDATE 'paws_schema'.'pets' SET 'vet_id' = '2' WHERE ('id' = '2');
 UPDATE 'paws_schema'.'pets' SET 'vet_id' = '3' WHERE ('id' = '3');
 UPDATE 'paws_schema'.'pets' SET 'vet_id' = '4' WHERE ('id' = '4');
 UPDATE 'paws_schema'.'pets' SET 'vet_id' = '3' WHERE ('id' = '5');
+
+INSERT INTO pets (name, species, breed, gender, date_of_birth, color, reg_date, owner_id, vet_id) VALUES
+("Ann", "Dog", "Pomerian", "Female", "2022-11-20", "White", "2022-11-22", 2, 3),
+("Tiger", "Dog", "Labrador", "Male", "2021-1-25", "White and Golden", "2021-1-31", 1, 4),
+("Hailey", "Cat", "Ragdoll", "Female", "2023-6-12", "White", "2023-6-15", 1, 2),
+("Pinky", "Dog", "Labrador", "Female", "2024-7-23", "White", "2024-7-25", 3, 1),
+("Cooper", "Dog", "Samoyed", "Male", "2023-9-04", "Black and Tan", "2023-10-11", 4, 3);
