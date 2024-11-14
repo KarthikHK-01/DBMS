@@ -82,6 +82,18 @@ def get_pet_details(connection, pet_id):
     except Error as e:
         st.error(f"Error: {e}")
         return None
+    
+def add_pets(connection, name, species, breed, gender, date_of_birth, color, reg_date, owner_id, vet_id):
+    try:
+        cursor = connection.cursor()
+        cursor.execute(
+            "INSERT INTO pets (name, species, breed, gender, date_of_birth, color, reg_date, owner_id, vet_id) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+            (name, species, breed, gender, date_of_birth, color, reg_date, owner_id, vet_id)
+        )
+        connection.commit()
+        st.success("Added Pet successfully!")
+    except Error as e:
+        st.error(f"Error: {e}")
 
 # Function to fetch users (for admin)
 def get_all_users(connection):
@@ -180,7 +192,7 @@ if st.session_state.logged_in:
         elif selected_option == "Admin Panel" and st.session_state.user_role == "admin":
             # Admin Panel content with CRUD options for users and pets
             st.title("Admin Panel")
-            admin_action = st.selectbox("Choose an action", ["View All Users", "Add User", "Delete User", "Delete Pet"])
+            admin_action = st.selectbox("Choose an action", ["View All Users", "Add User", "Delete User", "Delete Pet", "Add Pet"])
 
             if admin_action == "View All Users":
                 users = get_all_users(connection)
@@ -208,6 +220,21 @@ if st.session_state.logged_in:
                 user_id = st.number_input("Enter User ID to delete", min_value=1, step=1)
                 if st.button("Delete User"):
                     delete_user(connection, user_id)
+                    
+            elif admin_action == "Add Pet":
+                st.subheader("Add a New Pet")
+                name = st.text_input("Name")
+                species = st.text_input("Species")
+                breed = st.text_input("Breed")
+                Gender = st.text_input("Gender")
+                date_of_birth = st.text_input("Date Of Birth")
+                color = st.text_input("color")
+                reg_date = st.text_input("reg_date")
+                owner_id = st.text_input("owner_id")
+                vet_id = st.text_input("vet_id")
+                if st.button("Create Pet"):
+                    add_pets(connection, name, species, breed, Gender, date_of_birth, color, reg_date, owner_id, vet_id)
+
 
             elif admin_action == "Delete Pet":
                 st.subheader("Delete a Pet")

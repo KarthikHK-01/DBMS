@@ -1,112 +1,282 @@
 import streamlit as st
 import mysql.connector
 from mysql.connector import Error
+from datetime import date
 
 # Database connection function
 def create_connection():
     try:
         connection = mysql.connector.connect(
-            host='l27.0.0.1:3306',       # Replace with your MySQL host
-            database='paws_database',  # Replace with your database name
-            user='root',            # Replace with your MySQL username
-            password='05112004!@#$' # Replace with your MySQL password
+            host='localhost',       
+            database='paws_schema', 
+            user='root',            
+            password='05112004!@#$' 
         )
         return connection
     except Error as e:
         st.error(f"Error: {e}")
         return None
 
-# CRUD Functions
-def create_owner(connection, name, address, contact, email, aadhar):
+# Function to create a new user (Sign-Up)
+def create_user(connection, name, address, contact, email, aadhar, password, role="standard"):
     try:
         cursor = connection.cursor()
-        cursor.execute("INSERT INTO owners (name, address, contact_number, email, aadhar_number) VALUES (%s, %s, %s, %s, %s)",
-                       (name, address, contact, email, aadhar))
+        cursor.execute(
+            "INSERT INTO users (name, address, contact_number, email, aadhar_no, passwords, user_role) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+            (name, address, contact, email, aadhar, password, role)
+        )
         connection.commit()
-        st.success("Owner added successfully!")
+        st.success("Account created successfully!")
     except Error as e:
         st.error(f"Error: {e}")
 
-def read_owners(connection):
+# Function to check login credentials and user role
+def login_user(connection, email, password):
     try:
         cursor = connection.cursor()
-        cursor.execute("SELECT * FROM owners")
-        return cursor.fetchall()
+        cursor.execute("SELECT id, name, user_role FROM users WHERE email = %s AND passwords = %s", (email, password))
+        user = cursor.fetchone()
+        if user:
+            st.session_state.user_id = user[0]
+            st.session_state.user_name = user[1]
+            st.session_state.user_role = user[2]
+            st.session_state.logged_in = True
+            st.session_state.selected_pet_id = None  # Reset pet ID on login
+            st.success("Logged in successfully!")
+        else:
+            st.error("Invalid email or password.")
+    except Error as e:
+        st.error(f"Error: {e}")
+
+# Function to fetch pets associated with the user
+def get_user_pets(connection, owner_id):
+    try:
+        cursor = connection.cursor()
+        cursor.execute("SELECT id, name FROM pets WHERE owner_id = %s", (owner_id,))
+        pets = cursor.fetchall()
+        return pets
     except Error as e:
         st.error(f"Error: {e}")
         return []
 
-def update_owner(connection, owner_id, name, address, contact, email, aadhar):
+# Function to fetch detailed information for a specific pet
+def get_pet_details(connection, pet_id):
+    try:
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT pets.name, pets.species, pets.breed, pets.date_of_birth, pets.color, 
+                   veterinarians.name AS vet_name, veterinarians.contact_number AS vet_contact
+            FROM pets
+            LEFT JOIN veterinarians ON pets.vet_id = veterinarians.id
+            WHERE pets.id = %s
+        """, (pet_id,))
+        pet_details = cursor.fetchone()
+
+        # Calculate pet age
+        if pet_details and pet_details["date_of_birth"]:
+            dob = pet_details["date_of_birth"]
+            age = (date.today() - dob).days // 365
+            pet_details["age"] = age
+
+        return pet_details
+    except Error as e:
+        st.error(f"Error: {e}")
+        return None
+    
+def add_pets(connection, name, species, breed, gender, date_of_birth, color, reg_date, owner_id, vet_id):
     try:
         cursor = connection.cursor()
-        cursor.execute("UPDATE owners SET name=%s, address=%s, contact_number=%s, email=%s, aadhar_number=%s WHERE owner_id=%s",
-                       (name, address, contact, email, aadhar, owner_id))
+        cursor.execute(
+            "INSERT INTO pets (name, species, breed, gender, date_of_birth, color, reg_date, owner_id, vet_id) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+            (name, species, breed, gender, date_of_birth, color, reg_date, owner_id, vet_id)
+        )
         connection.commit()
-        st.success("Owner updated successfully!")
+        st.success("Added Pet successfully!")
     except Error as e:
         st.error(f"Error: {e}")
 
-def delete_owner(connection, owner_id):
+# Function to fetch users (for admin)
+def get_all_users(connection):
     try:
         cursor = connection.cursor()
-        cursor.execute("DELETE FROM owners WHERE owner_id=%s", (owner_id,))
+        cursor.execute("SELECT id, name, email, user_role FROM users")
+        users = cursor.fetchall()
+        return users
+    except Error as e:
+        st.error(f"Error: {e}")
+        return []
+
+# Function to delete a user (for admin)
+def delete_user(connection, user_id):
+    try:
+        cursor = connection.cursor()
+        cursor.execute("DELETE FROM users WHERE id = %s", (user_id,))
         connection.commit()
-        st.success("Owner deleted successfully!")
+        st.success("User deleted successfully!")
     except Error as e:
         st.error(f"Error: {e}")
 
-# Streamlit UI for CRUD Operations
-st.title("Pet Authentication and Welfare System")
+# Function to delete a pet (for admin)
+def delete_pet(connection, pet_id):
+    try:
+        cursor = connection.cursor()
+        cursor.execute("DELETE FROM pets WHERE id = %s", (pet_id,))
+        connection.commit()
+        st.success("Pet deleted successfully!")
+    except Error as e:
+        st.error(f"Error: {e}")
 
-menu = st.sidebar.selectbox("Select Operation", ["Add Owner", "View Owners", "Update Owner", "Delete Owner"])
+# Initialize session state for login if it doesn't exist
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
+if 'selected_pet_id' not in st.session_state:
+    st.session_state.selected_pet_id = None
 
-connection = create_connection()
+# Logout functionality
+def logout():
+    # Clear all relevant session state variables for logout
+    st.session_state.logged_in = False
+    st.session_state.user_id = None
+    st.session_state.user_name = None
+    st.session_state.user_role = None
+    st.session_state.selected_pet_id = None
 
-if connection:
-    if menu == "Add Owner":
-        st.subheader("Add a New Owner")
-        name = st.text_input("Name")
-        address = st.text_input("Address")
-        contact = st.text_input("Contact Number")
-        email = st.text_input("Email")
-        aadhar = st.text_input("Aadhar Number")
-        if st.button("Add Owner"):
-            create_owner(connection, name, address, contact, email, aadhar)
+# Main app logic
+if st.session_state.logged_in:
+    st.set_page_config(page_title="PAWS - Home", layout="wide")
 
-    elif menu == "View Owners":
-        st.subheader("View All Owners")
-        owners = read_owners(connection)
-        for owner in owners:
-            st.write(f"ID: {owner[0]}, Name: {owner[1]}, Address: {owner[2]}, Contact: {owner[3]}, Email: {owner[4]}, Aadhar: {owner[5]}")
+    # Sidebar with navigation options
+    sidebar_options = ["Home", "Pets", "About Us"]
+    if st.session_state.user_role == "admin":
+        sidebar_options.insert(2, "Admin Panel")  # Insert Admin Panel only for admins
 
-    elif menu == "Update Owner":
-        st.subheader("Update Owner Information")
-        owners = read_owners(connection)
-        owner_dict = {f"{owner[1]} (ID: {owner[0]})": owner[0] for owner in owners}
-        selected_owner = st.selectbox("Select Owner", list(owner_dict.keys()))
-        owner_id = owner_dict[selected_owner]
+    # Display sidebar options and logout button
+    selected_option = st.sidebar.radio("Navigate", sidebar_options)
+    st.sidebar.button("Logout", on_click=logout)  # Logout button always visible
 
-        owner_info = next(owner for owner in owners if owner[0] == owner_id)
-        name = st.text_input("Name", value=owner_info[1])
-        address = st.text_input("Address", value=owner_info[2])
-        contact = st.text_input("Contact Number", value=owner_info[3])
-        email = st.text_input("Email", value=owner_info[4])
-        aadhar = st.text_input("Aadhar Number", value=owner_info[5])
+    connection = create_connection()
+    if connection:
+        if selected_option == "Home":
+            st.title(f"Welcome to PAWS, {st.session_state.user_name}!")
+            st.write("PAWS helps you manage your pets' medical history and more.")
 
-        if st.button("Update Owner"):
-            update_owner(connection, owner_id, name, address, contact, email, aadhar)
+        elif selected_option == "Pets":
+            # Pets overview and details page
+            st.title("Your Pets")
+            pets = get_user_pets(connection, st.session_state.user_id)
+            if pets:
+                for pet in pets:
+                    pet_id, pet_name = pet
+                    if st.button(pet_name):
+                        st.session_state.selected_pet_id = pet_id
 
-    elif menu == "Delete Owner":
-        st.subheader("Delete an Owner")
-        owners = read_owners(connection)
-        owner_dict = {f"{owner[1]} (ID: {owner[0]})": owner[0] for owner in owners}
-        selected_owner = st.selectbox("Select Owner to Delete", list(owner_dict.keys()))
-        owner_id = owner_dict[selected_owner]
+            # Detailed view for a specific pet
+            if st.session_state.selected_pet_id:
+                pet_id = st.session_state.selected_pet_id
+                pet_details = get_pet_details(connection, pet_id)
 
-        if st.button("Delete Owner"):
-            delete_owner(connection, owner_id)
+                if pet_details:
+                    st.header(f"Details for {pet_details['name']}")
+                    st.write(f"**Species**: {pet_details['species']}")
+                    st.write(f"**Breed**: {pet_details['breed']}")
+                    st.write(f"**Age**: {pet_details.get('age', 'N/A')} years")
+                    st.write(f"**Color**: {pet_details['color']}")
+                    st.write(f"**Date of Birth**: {pet_details['date_of_birth']}")
+                    st.write(f"**Veterinarian**: {pet_details['vet_name']}")
+                    st.write(f"**Vet Contact**: {pet_details['vet_contact']}")
 
-    # Close the connection after operations are complete
-    connection.close()
+                    # Back button to return to pets list
+                    if st.button("Back to Pets List"):
+                        st.session_state.selected_pet_id = None
+
+        elif selected_option == "Admin Panel" and st.session_state.user_role == "admin":
+            # Admin Panel content with CRUD options for users and pets
+            st.title("Admin Panel")
+            admin_action = st.selectbox("Choose an action", ["View All Users", "Add User", "Delete User", "Delete Pet", "Add Pet"])
+
+            if admin_action == "View All Users":
+                users = get_all_users(connection)
+                if users:
+                    for user in users:
+                        st.write(f"**ID**: {user[0]}, **Name**: {user[1]}, **Email**: {user[2]}, **Role**: {user[3]}")
+                else:
+                    st.write("No users found.")
+
+            elif admin_action == "Add User":
+                st.subheader("Add a New User")
+                name = st.text_input("Name")
+                address = st.text_input("Address")
+                contact = st.text_input("Contact Number")
+                email = st.text_input("Email")
+                aadhar = st.text_input("Aadhar Number")
+                password = st.text_input("Password", type="password")
+                role = st.selectbox("Role", ["standard", "admin"])
+                
+                if st.button("Create User"):
+                    create_user(connection, name, address, contact, email, aadhar, password, role)
+
+            elif admin_action == "Delete User":
+                st.subheader("Delete a User")
+                user_id = st.number_input("Enter User ID to delete", min_value=1, step=1)
+                if st.button("Delete User"):
+                    delete_user(connection, user_id)
+                    
+            elif admin_action == "Add Pet":
+                st.subheader("Add a New Pet")
+                name = st.text_input("Name")
+                species = st.text_input("Species")
+                breed = st.text_input("Breed")
+                Gender = st.text_input("Gender")
+                date_of_birth = st.text_input("Date Of Birth")
+                color = st.text_input("color")
+                reg_date = st.text_input("reg_date")
+                owner_id = st.text_input("owner_id")
+                vet_id = st.text_input("vet_id")
+                if st.button("Create Pet"):
+                    add_pets(connection, name, species, breed, Gender, date_of_birth, color, reg_date, owner_id, vet_id)
+
+
+            elif admin_action == "Delete Pet":
+                st.subheader("Delete a Pet")
+                pet_id = st.number_input("Enter Pet ID to delete", min_value=1, step=1)
+                if st.button("Delete Pet"):
+                    delete_pet(connection, pet_id)
+
+        elif selected_option == "About Us":
+            st.title("About PAWS")
+            st.write("PAWS is a comprehensive pet management solution.")
+
+        connection.close()
+    else:
+        st.error("Unable to connect to the database.")
 else:
-    st.error("Unable to connect to the database.")
+    # Display Login and Sign-Up Page if not logged in
+    st.title("Pet Authentication and Welfare System")
+    choice = st.radio("Select Option", ["Login", "Sign Up"])
+
+    connection = create_connection()
+    if connection:
+        if choice == "Sign Up":
+            st.subheader("Create a New Account")
+            name = st.text_input("Name")
+            address = st.text_input("Address")
+            contact = st.text_input("Contact Number")
+            email = st.text_input("Email")
+            aadhar = st.text_input("Aadhar Number")
+            password = st.text_input("Password", type="password")
+            role = st.selectbox("Role", ["standard", "admin"])
+
+            if st.button("Sign Up"):
+                create_user(connection, name, address, contact, email, aadhar, password, role)
+        
+        elif choice == "Login":
+            st.subheader("Log In to Your Account")
+            email = st.text_input("Email")
+            password = st.text_input("Password", type="password")
+            
+            if st.button("Login"):
+                login_user(connection, email, password)
+
+        connection.close()
+    else:
+        st.error("Unable to connect to the database.")
