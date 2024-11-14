@@ -41,6 +41,7 @@ def login_user(connection, email, password):
             st.session_state.user_name = user[1]
             st.session_state.user_role = user[2]
             st.session_state.logged_in = True
+            st.session_state.selected_pet_id = None  # Reset pet ID on login
             st.success("Logged in successfully!")
         else:
             st.error("Invalid email or password.")
@@ -82,23 +83,28 @@ def get_pet_details(connection, pet_id):
         st.error(f"Error: {e}")
         return None
 
-# Function to fetch activity log for a specific pet
-def get_pet_activity_log(connection, pet_id):
+# Function to fetch users (for admin)
+def get_all_users(connection):
     try:
-        cursor = connection.cursor(dictionary=True)
-        cursor.execute("""
-            SELECT activity_type, duration, activity_date 
-            FROM pet_activity_log 
-            WHERE pet_id = %s
-            ORDER BY activity_date DESC
-        """, (pet_id,))
-        activity_log = cursor.fetchall()
-        return activity_log
+        cursor = connection.cursor()
+        cursor.execute("SELECT id, name, email, user_role FROM users")
+        users = cursor.fetchall()
+        return users
     except Error as e:
         st.error(f"Error: {e}")
         return []
 
-# Function to delete a pet (admin privilege)
+# Function to delete a user (for admin)
+def delete_user(connection, user_id):
+    try:
+        cursor = connection.cursor()
+        cursor.execute("DELETE FROM users WHERE id = %s", (user_id,))
+        connection.commit()
+        st.success("User deleted successfully!")
+    except Error as e:
+        st.error(f"Error: {e}")
+
+# Function to delete a pet (for admin)
 def delete_pet(connection, pet_id):
     try:
         cursor = connection.cursor()
@@ -143,27 +149,19 @@ if st.session_state.logged_in:
             st.write("PAWS helps you manage your pets' medical history and more.")
 
         elif selected_option == "Pets":
-            if st.session_state.selected_pet_id is None:
-                # Pets overview page: list of pets with clickable names
-                st.title("Your Pets")
-                pets = get_user_pets(connection, st.session_state.user_id)
-                if pets:
-                    for pet in pets:
-                        pet_id, pet_name = pet
-                        if st.button(pet_name):
-                            st.session_state.selected_pet_id = pet_id
+            # Pets overview and details page
+            st.title("Your Pets")
+            pets = get_user_pets(connection, st.session_state.user_id)
+            if pets:
+                for pet in pets:
+                    pet_id, pet_name = pet
+                    if st.button(pet_name):
+                        st.session_state.selected_pet_id = pet_id
 
-                if st.session_state.user_role == "admin":
-                    st.subheader("Admin: Delete a Pet")
-                    pet_id_to_delete = st.number_input("Enter Pet ID to delete", min_value=1, step=1)
-                    if st.button("Delete Pet"):
-                        delete_pet(connection, pet_id_to_delete)
-
-            else:
-                # Detailed view for a specific pet
+            # Detailed view for a specific pet
+            if st.session_state.selected_pet_id:
                 pet_id = st.session_state.selected_pet_id
                 pet_details = get_pet_details(connection, pet_id)
-                activity_log = get_pet_activity_log(connection, pet_id)
 
                 if pet_details:
                     st.header(f"Details for {pet_details['name']}")
@@ -175,23 +173,47 @@ if st.session_state.logged_in:
                     st.write(f"**Veterinarian**: {pet_details['vet_name']}")
                     st.write(f"**Vet Contact**: {pet_details['vet_contact']}")
 
-                    # Display activity log
-                    st.subheader("Activity Log")
-                    if activity_log:
-                        for activity in activity_log:
-                            st.write(f"- **{activity['activity_type']}** on {activity['activity_date']} for {activity['duration']}")
-                    else:
-                        st.write("No activities recorded.")
-                
-                # Back button to return to pets list
-                if st.button("Back to Pets List"):
-                    st.session_state.selected_pet_id = None
+                    # Back button to return to pets list
+                    if st.button("Back to Pets List"):
+                        st.session_state.selected_pet_id = None
 
         elif selected_option == "Admin Panel" and st.session_state.user_role == "admin":
-            # Admin Panel code here (e.g., view users, add users, delete users, etc.)
+            # Admin Panel content with CRUD options for users and pets
             st.title("Admin Panel")
-            st.write("Manage users and pets as an administrator.")
-            # Additional CRUD options for the Admin Panel can go here
+            admin_action = st.selectbox("Choose an action", ["View All Users", "Add User", "Delete User", "Delete Pet"])
+
+            if admin_action == "View All Users":
+                users = get_all_users(connection)
+                if users:
+                    for user in users:
+                        st.write(f"**ID**: {user[0]}, **Name**: {user[1]}, **Email**: {user[2]}, **Role**: {user[3]}")
+                else:
+                    st.write("No users found.")
+
+            elif admin_action == "Add User":
+                st.subheader("Add a New User")
+                name = st.text_input("Name")
+                address = st.text_input("Address")
+                contact = st.text_input("Contact Number")
+                email = st.text_input("Email")
+                aadhar = st.text_input("Aadhar Number")
+                password = st.text_input("Password", type="password")
+                role = st.selectbox("Role", ["standard", "admin"])
+                
+                if st.button("Create User"):
+                    create_user(connection, name, address, contact, email, aadhar, password, role)
+
+            elif admin_action == "Delete User":
+                st.subheader("Delete a User")
+                user_id = st.number_input("Enter User ID to delete", min_value=1, step=1)
+                if st.button("Delete User"):
+                    delete_user(connection, user_id)
+
+            elif admin_action == "Delete Pet":
+                st.subheader("Delete a Pet")
+                pet_id = st.number_input("Enter Pet ID to delete", min_value=1, step=1)
+                if st.button("Delete Pet"):
+                    delete_pet(connection, pet_id)
 
         elif selected_option == "About Us":
             st.title("About PAWS")
@@ -215,9 +237,10 @@ else:
             email = st.text_input("Email")
             aadhar = st.text_input("Aadhar Number")
             password = st.text_input("Password", type="password")
-            
+            role = st.selectbox("Role", ["standard", "admin"])
+
             if st.button("Sign Up"):
-                create_user(connection, name, address, contact, email, aadhar, password)
+                create_user(connection, name, address, contact, email, aadhar, password, role)
         
         elif choice == "Login":
             st.subheader("Log In to Your Account")
