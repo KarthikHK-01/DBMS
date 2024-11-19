@@ -7,59 +7,70 @@ from datetime import date
 def create_connection():
     try:
         connection = mysql.connector.connect(
-            host='localhost',       
-            database='paws_schema', 
-            user='root',            
-            password='05112004!@#$' 
+            host='localhost',
+            database='paws_schema',
+            user='root',
+            password='05112004!@#$'
         )
         return connection
     except Error as e:
         st.error(f"Error: {e}")
         return None
 
-# Function to create a new user (Sign-Up)
-def create_user(connection, name, address, contact, email, aadhar, password, role="standard"):
+# Function to fetch a user's details by ID
+def get_user_by_id(connection, user_id):
     try:
-        cursor = connection.cursor()
-        cursor.execute(
-            "INSERT INTO users (name, address, contact_number, email, aadhar_no, passwords, user_role) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-            (name, address, contact, email, aadhar, password, role)
-        )
-        connection.commit()
-        st.success("Account created successfully!")
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
+        return cursor.fetchone()
     except Error as e:
         st.error(f"Error: {e}")
+        return None
 
-# Function to check login credentials and user role
-def login_user(connection, email, password):
+# Function to fetch all users
+def get_all_users(connection):
     try:
         cursor = connection.cursor()
-        cursor.execute("SELECT id, name, user_role FROM users WHERE email = %s AND passwords = %s", (email, password))
-        user = cursor.fetchone()
-        if user:
-            st.session_state.user_id = user[0]
-            st.session_state.user_name = user[1]
-            st.session_state.user_role = user[2]
-            st.session_state.logged_in = True
-            st.session_state.selected_pet_id = None  # Reset pet ID on login
-            st.success("Logged in successfully!")
-        else:
-            st.error("Invalid email or password.")
-    except Error as e:
-        st.error(f"Error: {e}")
-
-# Function to fetch pets associated with the user
-def get_user_pets(connection, owner_id):
-    try:
-        cursor = connection.cursor()
-        cursor.execute("SELECT id, name FROM pets WHERE owner_id = %s", (owner_id,))
-        pets = cursor.fetchall()
-        return pets
+        cursor.execute("SELECT id, name, email, user_role FROM users")
+        return cursor.fetchall()
     except Error as e:
         st.error(f"Error: {e}")
         return []
 
-# Function to fetch detailed information for a specific pet
+# Function to verify admin password
+def verify_admin_password(connection, admin_id, password):
+    try:
+        cursor = connection.cursor()
+        cursor.execute("SELECT passwords FROM users WHERE id = %s AND user_role = 'admin'", (admin_id,))
+        result = cursor.fetchone()
+        return result and result[0] == password
+    except Error as e:
+        st.error(f"Error: {e}")
+        return False
+
+# Function to update user details
+def update_user(connection, user_id, name, address, contact, email, aadhar, password, role):
+    try:
+        cursor = connection.cursor()
+        cursor.execute("""
+            UPDATE users 
+            SET name = %s, address = %s, contact_number = %s, email = %s, aadhar_no = %s, passwords = %s, user_role = %s 
+            WHERE id = %s
+        """, (name, address, contact, email, aadhar, password, role, user_id))
+        connection.commit()
+        st.success("User updated successfully!")
+    except Error as e:
+        st.error(f"Error: {e}")
+        
+def get_user_pets(connection, owner_id):
+    try:
+        cursor = connection.cursor()
+        cursor.execute("SELECT id, name FROM pets WHERE owner_id = %s", (owner_id,))
+        return cursor.fetchall()
+    except Error as e:
+        st.error(f"Error: {e}")
+        return []
+    
 def get_pet_details(connection, pet_id):
     try:
         cursor = connection.cursor(dictionary=True)
@@ -70,53 +81,33 @@ def get_pet_details(connection, pet_id):
             LEFT JOIN veterinarians ON pets.vet_id = veterinarians.id
             WHERE pets.id = %s
         """, (pet_id,))
-        pet_details = cursor.fetchone()
+        pet = cursor.fetchone()
 
-        # Calculate pet age
-        if pet_details and pet_details["date_of_birth"]:
-            dob = pet_details["date_of_birth"]
+        # Add pet's age
+        if pet and pet["date_of_birth"]:
+            dob = pet["date_of_birth"]
             age = (date.today() - dob).days // 365
-            pet_details["age"] = age
+            pet["age"] = age
 
-        return pet_details
+        return pet
     except Error as e:
         st.error(f"Error: {e}")
         return None
-    
-def add_pets(connection, name, species, breed, gender, date_of_birth, color, reg_date, owner_id, vet_id):
+
+# Function to add a pet
+def add_pet(connection, name, species, breed, gender, date_of_birth, color, reg_date, owner_id, vet_id):
     try:
         cursor = connection.cursor()
-        cursor.execute(
-            "INSERT INTO pets (name, species, breed, gender, date_of_birth, color, reg_date, owner_id, vet_id) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-            (name, species, breed, gender, date_of_birth, color, reg_date, owner_id, vet_id)
-        )
+        cursor.execute("""
+            INSERT INTO pets (name, species, breed, gender, date_of_birth, color, reg_date, owner_id, vet_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (name, species, breed, gender, date_of_birth, color, reg_date, owner_id, vet_id))
         connection.commit()
-        st.success("Added Pet successfully!")
+        st.success("Pet added successfully!")
     except Error as e:
         st.error(f"Error: {e}")
 
-# Function to fetch users (for admin)
-def get_all_users(connection):
-    try:
-        cursor = connection.cursor()
-        cursor.execute("SELECT id, name, email, user_role FROM users")
-        users = cursor.fetchall()
-        return users
-    except Error as e:
-        st.error(f"Error: {e}")
-        return []
-
-# Function to delete a user (for admin)
-def delete_user(connection, user_id):
-    try:
-        cursor = connection.cursor()
-        cursor.execute("DELETE FROM users WHERE id = %s", (user_id,))
-        connection.commit()
-        st.success("User deleted successfully!")
-    except Error as e:
-        st.error(f"Error: {e}")
-
-# Function to delete a pet (for admin)
+# Function to delete a pet
 def delete_pet(connection, pet_id):
     try:
         cursor = connection.cursor()
@@ -126,138 +117,127 @@ def delete_pet(connection, pet_id):
     except Error as e:
         st.error(f"Error: {e}")
 
-# Initialize session state for login if it doesn't exist
-if 'logged_in' not in st.session_state:
-    st.session_state.logged_in = False
-if 'selected_pet_id' not in st.session_state:
-    st.session_state.selected_pet_id = None
 
-# Logout functionality
-def logout():
-    # Clear all relevant session state variables for logout
-    st.session_state.logged_in = False
-    st.session_state.user_id = None
-    st.session_state.user_name = None
-    st.session_state.user_role = None
-    st.session_state.selected_pet_id = None
+# Admin Panel functionality
+def admin_panel(connection):
+    st.title("Admin Panel")
+    action = st.selectbox("Choose an action", ["View All Users", "Add User", "Update User", "Delete User", "Add Pet", "Delete Pet"])
+
+    if action == "View All Users":
+        users = get_all_users(connection)
+        if users:
+            for user in users:
+                st.write(f"ID: {user[0]}, *Name: {user[1]}, **Email: {user[2]}, **Role*: {user[3]}")
+        else:
+            st.warning("No users found.")
+
+    elif action == "Update User":
+        user_id = st.number_input("Enter User ID to update", min_value=1, step=1)
+
+        # Use session state to manage form state
+        if "update_form_loaded" not in st.session_state:
+            st.session_state.update_form_loaded = False
+
+        if st.button("Fetch User Details"):
+            user = get_user_by_id(connection, user_id)
+            if user:
+                st.session_state.update_form_loaded = True
+                st.session_state.user_data = user
+            else:
+                st.warning("User not found. Please check the User ID.")
+
+        if st.session_state.update_form_loaded:
+            user = st.session_state.user_data
+            name = st.text_input("Name", user["name"])
+            address = st.text_input("Address", user["address"])
+            contact = st.text_input("Contact Number", user["contact_number"])
+            email = st.text_input("Email", user["email"])
+            aadhar = st.text_input("Aadhar Number", user["aadhar_no"])
+            password = st.text_input("Password", user["passwords"])
+            role = st.selectbox("Role", ["standard", "admin"], index=0 if user["user_role"] == "standard" else 1)
+
+            admin_password = None
+            if role == "admin" and user["user_role"] != "admin":
+                admin_password = st.text_input("Re-enter your admin password to confirm", type="password")
+
+            if st.button("Update User"):
+                if role == "admin" and user["user_role"] != "admin":
+                    if verify_admin_password(connection, st.session_state.user_id, admin_password):
+                        update_user(connection, user_id, name, address, contact, email, aadhar, password, role)
+                        st.session_state.update_form_loaded = False  # Reset form state
+                    else:
+                        st.error("Authentication failed. Incorrect admin password.")
+                else:
+                    update_user(connection, user_id, name, address, contact, email, aadhar, password, role)
+                    st.session_state.update_form_loaded = False  # Reset form state
 
 # Main app logic
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
+
 if st.session_state.logged_in:
-    st.set_page_config(page_title="PAWS - Home", layout="wide")
-
-    # Sidebar with navigation options
-    sidebar_options = ["Home", "Pets", "About Us"]
-    if st.session_state.user_role == "admin":
-        sidebar_options.insert(2, "Admin Panel")  # Insert Admin Panel only for admins
-
-    # Display sidebar options and logout button
-    selected_option = st.sidebar.radio("Navigate", sidebar_options)
-    st.sidebar.button("Logout", on_click=logout)  # Logout button always visible
-
+    st.set_page_config(page_title="PAWS - Admin Panel", layout="wide")
     connection = create_connection()
     if connection:
+        selected_option = st.sidebar.radio("Navigate", ["Home", "Pets", "Admin Panel", "About Us"])
+        st.sidebar.button("Logout", on_click=lambda: st.session_state.update({'logged_in': False}))
+
         if selected_option == "Home":
-            st.title(f"Welcome to PAWS, {st.session_state.user_name}!")
-            st.write("PAWS helps you manage your pets' medical history and more.")
-
+            st.title(f"Welcome, {st.session_state.user_name}!")
+            st.write("""Manage your pets and user data efficiently with the help of PAWS today.
+                     PAWS was created with the aim of managing all Pet details in a centralised database. 
+                     """)
+        
         elif selected_option == "Pets":
-            # Pets overview and details page
-            st.title("Your Pets")
             pets = get_user_pets(connection, st.session_state.user_id)
-            if pets:
-                for pet in pets:
-                    pet_id, pet_name = pet
-                    if st.button(pet_name):
-                        st.session_state.selected_pet_id = pet_id
+            for pet in pets:
+                if st.button(pet[1]):
+                    pet_details = get_pet_details(connection, pet[0])
+                    if pet_details:
+                        st.write(f"**Name**: {pet_details['name']}")
+                        st.write(f"**Species**: {pet_details['species']}")
+                        st.write(f"**Breed**: {pet_details['breed']}")
+                        st.write(f"**Age**: {pet_details['age']} years")
+                        st.write(f"**Color**: {pet_details['color']}")
+                        st.write(f"**Veterinarian**: {pet_details['vet_name']}")
+                        st.write(f"**Vet Contact**: {pet_details['vet_contact']}")
 
-            # Detailed view for a specific pet
-            if st.session_state.selected_pet_id:
-                pet_id = st.session_state.selected_pet_id
-                pet_details = get_pet_details(connection, pet_id)
-
-                if pet_details:
-                    st.header(f"Details for {pet_details['name']}")
-                    st.write(f"**Species**: {pet_details['species']}")
-                    st.write(f"**Breed**: {pet_details['breed']}")
-                    st.write(f"**Age**: {pet_details.get('age', 'N/A')} years")
-                    st.write(f"**Color**: {pet_details['color']}")
-                    st.write(f"**Date of Birth**: {pet_details['date_of_birth']}")
-                    st.write(f"**Veterinarian**: {pet_details['vet_name']}")
-                    st.write(f"**Vet Contact**: {pet_details['vet_contact']}")
-
-                    # Back button to return to pets list
-                    if st.button("Back to Pets List"):
-                        st.session_state.selected_pet_id = None
-
-        elif selected_option == "Admin Panel" and st.session_state.user_role == "admin":
-            # Admin Panel content with CRUD options for users and pets
-            st.title("Admin Panel")
-            admin_action = st.selectbox("Choose an action", ["View All Users", "Add User", "Delete User", "Delete Pet", "Add Pet"])
-
-            if admin_action == "View All Users":
-                users = get_all_users(connection)
-                if users:
-                    for user in users:
-                        st.write(f"**ID**: {user[0]}, **Name**: {user[1]}, **Email**: {user[2]}, **Role**: {user[3]}")
-                else:
-                    st.write("No users found.")
-
-            elif admin_action == "Add User":
-                st.subheader("Add a New User")
-                name = st.text_input("Name")
-                address = st.text_input("Address")
-                contact = st.text_input("Contact Number")
-                email = st.text_input("Email")
-                aadhar = st.text_input("Aadhar Number")
-                password = st.text_input("Password", type="password")
-                role = st.selectbox("Role", ["standard", "admin"])
-                
-                if st.button("Create User"):
-                    create_user(connection, name, address, contact, email, aadhar, password, role)
-
-            elif admin_action == "Delete User":
-                st.subheader("Delete a User")
-                user_id = st.number_input("Enter User ID to delete", min_value=1, step=1)
-                if st.button("Delete User"):
-                    delete_user(connection, user_id)
-                    
-            elif admin_action == "Add Pet":
-                st.subheader("Add a New Pet")
-                name = st.text_input("Name")
-                species = st.text_input("Species")
-                breed = st.text_input("Breed")
-                Gender = st.text_input("Gender")
-                date_of_birth = st.text_input("Date Of Birth")
-                color = st.text_input("color")
-                reg_date = st.text_input("reg_date")
-                owner_id = st.text_input("owner_id")
-                vet_id = st.text_input("vet_id")
-                if st.button("Create Pet"):
-                    add_pets(connection, name, species, breed, Gender, date_of_birth, color, reg_date, owner_id, vet_id)
-
-
-            elif admin_action == "Delete Pet":
-                st.subheader("Delete a Pet")
-                pet_id = st.number_input("Enter Pet ID to delete", min_value=1, step=1)
-                if st.button("Delete Pet"):
-                    delete_pet(connection, pet_id)
+        elif selected_option == "Admin Panel":
+            if st.session_state.user_role == "admin":
+                admin_panel(connection)
+            else:
+                st.error("Access denied. Only admins can view this page.")
 
         elif selected_option == "About Us":
             st.title("About PAWS")
-            st.write("PAWS is a comprehensive pet management solution.")
+            st.write("""PAWS is a comprehensive pet management solution.
+                     We at PAWS are committed to making sure that all Pet Owners should be able to manage all the details about their pets including Insurance, Medical Records, Owner Ship details, activity logging at a centralised place.
+                     This is exactly what PAWS helps you do. Keep all the data secure in a centralised database !
+""")
 
         connection.close()
-    else:
-        st.error("Unable to connect to the database.")
 else:
-    # Display Login and Sign-Up Page if not logged in
     st.title("Pet Authentication and Welfare System")
     choice = st.radio("Select Option", ["Login", "Sign Up"])
-
     connection = create_connection()
     if connection:
-        if choice == "Sign Up":
-            st.subheader("Create a New Account")
+        if choice == "Login":
+            email = st.text_input("Email")
+            password = st.text_input("Password", type="password")
+            if st.button("Login"):
+                cursor = connection.cursor()
+                cursor.execute("SELECT id, name, user_role FROM users WHERE email = %s AND passwords = %s", (email, password))
+                user = cursor.fetchone()
+                if user:
+                    st.session_state.user_id = user[0]
+                    st.session_state.user_name = user[1]
+                    st.session_state.user_role = user[2]
+                    st.session_state.logged_in = True
+                    st.success("Logged in successfully!")
+                else:
+                    st.error("Invalid email or password.")
+
+        elif choice == "Sign Up":
             name = st.text_input("Name")
             address = st.text_input("Address")
             contact = st.text_input("Contact Number")
@@ -265,18 +245,15 @@ else:
             aadhar = st.text_input("Aadhar Number")
             password = st.text_input("Password", type="password")
             role = st.selectbox("Role", ["standard", "admin"])
-
             if st.button("Sign Up"):
-                create_user(connection, name, address, contact, email, aadhar, password, role)
-        
-        elif choice == "Login":
-            st.subheader("Log In to Your Account")
-            email = st.text_input("Email")
-            password = st.text_input("Password", type="password")
-            
-            if st.button("Login"):
-                login_user(connection, email, password)
-
+                try:
+                    cursor = connection.cursor()
+                    cursor.execute("""
+                        INSERT INTO users (name, address, contact_number, email, aadhar_no, passwords, user_role)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    """, (name, address, contact, email, aadhar, password, role))
+                    connection.commit()
+                    st.success("Account created successfully!")
+                except Error as e:
+                    st.error(f"Error: {e}")
         connection.close()
-    else:
-        st.error("Unable to connect to the database.")
